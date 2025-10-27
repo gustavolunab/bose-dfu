@@ -290,7 +290,7 @@ enum DfuReportId {
 /// Status codes a DFU device can return, taken from the USB DFU 1.1 spec.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
-#[allow(non_camel_case_types)] // Names from DFU spec
+#[expect(non_camel_case_types)] // Names from DFU spec
 pub enum DfuStatus {
     OK = 0x00,
     errTARGET = 0x01,
@@ -341,7 +341,7 @@ impl DfuStatus {
 /// States a DFU device can be in, taken from the USB DFU 1.1 spec.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, TryFromPrimitive)]
-#[allow(non_camel_case_types)] // Names from DFU spec
+#[expect(non_camel_case_types)] // Names from DFU spec
 pub enum DfuState {
     appIDLE = 0,
     appDETACH = 1,
@@ -383,7 +383,7 @@ impl DfuState {
 }
 
 #[repr(u8)]
-#[allow(non_camel_case_types)] // Names from DFU spec
+#[expect(non_camel_case_types)] // Names from DFU spec
 #[allow(dead_code)] // All entries from spec included for completeness
 enum DfuRequest {
     DFU_DETACH = 0,
