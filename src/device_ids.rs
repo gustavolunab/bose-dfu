@@ -3,17 +3,13 @@ use std::fmt::Display;
 const BOSE_VID: u16 = 0x05a7;
 const BOSE_HID_USAGE_PAGE: u16 = 0xff00;
 
-// TODO: It turns out that many devices share the same normal mode PID, so
-// we should at least tweak the wording that currently lists everything with
-// a PID in this list as a "compatible device". Perhaps add an additional
-// match on product string?
 const COMPATIBLE_DEVICES: &[DeviceIds] = &[
     // Bose Color II SoundLink
-    bose_dev(0x40fe, 0x400d),
+    bose_dev(0x40fe, 0x400d, Some("Bose Color II SoundLink")),
     // Bose SoundLink Mini II
-    bose_dev(0x40fe, 0x4009),
+    bose_dev(0x40fe, 0x4009, Some("Bose SoundLink Mini II")),
     // Bose QC35 II
-    bose_dev(0x40fe, 0x4020),
+    bose_dev(0x40fe, 0x4020, Some("Bose QC35 II")),
 ];
 
 // Use UsbId instead of DeviceIds since some incompatible devices don't have a concept of DFU mode.
@@ -22,7 +18,7 @@ const INCOMPATIBLE_DEVICES: &[UsbId] = &[
     bose_pid(0x40fc),
 ];
 
-const fn bose_dev(normal_pid: u16, dfu_pid: u16) -> DeviceIds {
+const fn bose_dev(normal_pid: u16, dfu_pid: u16, product_name: Option<&'static str>) -> DeviceIds {
     DeviceIds {
         normal_mode: UsbId {
             vid: BOSE_VID,
@@ -32,6 +28,7 @@ const fn bose_dev(normal_pid: u16, dfu_pid: u16) -> DeviceIds {
             vid: BOSE_VID,
             pid: dfu_pid,
         },
+        product_name,
     }
 }
 
@@ -39,8 +36,8 @@ const fn bose_pid(pid: u16) -> UsbId {
     UsbId { vid: BOSE_VID, pid }
 }
 
-/// Find a device's compatibility and mode based on its USB ID.
-pub fn identify_device(id: UsbId, usage_page: u16) -> DeviceCompat {
+/// Find a device's compatibility and mode based on its USB ID and optional product string.
+pub fn identify_device(id: UsbId, usage_page: u16, product_string: Option<&str>) -> DeviceCompat {
     // On macOS, Windows, and Linux/hidraw, each usage page is exposed as a separate device and we
     // only want the DFU one. On Linux/libusb, all pages are one device and usage_page() is 0.
     if ![0, BOSE_HID_USAGE_PAGE].contains(&usage_page) {
@@ -49,7 +46,7 @@ pub fn identify_device(id: UsbId, usage_page: u16) -> DeviceCompat {
 
     // See if the device is known to us.
     for candidate in COMPATIBLE_DEVICES {
-        if let Some(mode) = candidate.match_id(id) {
+        if let Some(mode) = candidate.match_id(id, product_string) {
             return DeviceCompat::Compatible(mode);
         }
     }
@@ -93,18 +90,34 @@ impl Display for DeviceCompat {
 struct DeviceIds {
     normal_mode: UsbId,
     dfu_mode: UsbId,
+    /// Optional product string to disambiguate devices with shared PIDs
+    product_name: Option<&'static str>,
 }
 
 impl DeviceIds {
-    /// If one of our modes uses with the given ID, return it. Otherwise, return [None].
-    fn match_id(&self, id: UsbId) -> Option<DeviceMode> {
-        if id == self.normal_mode {
+    /// If one of our modes matches the given ID and optional product string, return the mode.
+    /// Otherwise, return [None].
+    fn match_id(&self, id: UsbId, product_string: Option<&str>) -> Option<DeviceMode> {
+        // First check if USB ID matches
+        let mode = if id == self.normal_mode {
             Some(DeviceMode::Normal)
         } else if id == self.dfu_mode {
             Some(DeviceMode::Dfu)
         } else {
-            None
+            return None;
+        };
+
+        // If product_name is specified, check if it matches
+        if let Some(expected_name) = self.product_name
+            && let Some(actual_name) = product_string
+            && actual_name != expected_name
+        {
+            return None;
         }
+        // If product_name is required but product_string is None, still allow match
+        // (this handles cases where product string might not be available)
+
+        mode
     }
 }
 
